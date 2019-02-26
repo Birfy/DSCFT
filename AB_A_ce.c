@@ -96,7 +96,7 @@ int main(int argc, char **argv)
 	dy = ly / Ny;
 	dz = lz / Nz;
 
-	fA2 = 1.0 - fB - fA1;
+	fA2 = 1.0 - fA1 - fB;
 
 	printf("hAB = %.3lf\n", hAB);
 	printf("fA1 = %.3lf, fB = %.3lf, fA2 = %.3lf\n", fA1, fB, fA2);
