@@ -1,5 +1,5 @@
-# SCFT & DSCFT
-SCFT(self-consistent field theory) is an efficient tool for simulation of block copolymer melts. DSCFT(dynamic SCFT) uses EPD(external field dynamics) to analyze the dynamic path in phase transition of block copolymer melts.
+# SCFT & EPD
+SCFT(self-consistent field theory) is an efficient tool for simulation of block copolymer melts. EPD(external field dynamics) is used to analyze the dynamic path in phase transition of block copolymer melts.
 
 In the programs, we are using continuous Gauss Chain model to describe the polymers and pseudospectral method to solve the diffusion equation. 
 
@@ -22,3 +22,5 @@ canonical ensemble
 * gce
 
 grand canonical ensemble
+
+Further information will be posted later.
