@@ -19,9 +19,9 @@ void wmtowp(double *wm, double *wp, double *phA, double *phB);
 void init(int in, double *wm, double *wp);
 void initW_Random(double *wm, double *wp);
 
-int ZDIMM, NsA1, NsB, NsA2;
+int ZDIMM, NsA, NsB;
 double lx, ly, ds0;
-double hAB, fA, fB, fA1, fA2;
+double hAB, fA, fB;
 double epA, epB;
 int Nx, Ny, NxNy, Nyh1, NxNy1;
 double *kxyz, dx, dy;
@@ -49,7 +49,7 @@ int main(int argc, char **argv)
 	fscanf(fp, "%lf", &lylx);
 	fscanf(fp, "%d", &aismatrix);
 	fscanf(fp, "%lf", &hAB);
-	fscanf(fp, "%lf, %lf", &fA1, &fB);
+	fscanf(fp, "%lf", &fA);
 	fscanf(fp, "%lf, %lf", &lx, &ly);
 	fscanf(fp, "%d, %d", &Nx, &Ny);
 	fscanf(fp, "%lf", &ds0);
@@ -75,22 +75,20 @@ int main(int argc, char **argv)
 	dx = lx / Nx;
 	dy = ly / Ny;
 
-	fA2 = 1.0 - fA1 - fB;
-	fA = fA1 + fA2;
+	fB = 1 - fA;
 
 	printf("hAB = %.3lf\n", hAB);
-	printf("fA1 = %.3lf, fB = %.3lf, fA2 = %.3lf\n", fA1, fB, fA2);
+	printf("fA = %.3lf, fB = %.3lf\n", fA, fB);
 	printf("dx = %.3lf, dy = %.3lf\n", dx, dy);
 
-	NsA1 = ((int)(fA1 / ds0 + 1.0e-6));
+	NsA = ((int)(fA / ds0 + 1.0e-6));
 	NsB = ((int)(fB / ds0 + 1.0e-6));
-	NsA2 = ((int)(fA2 / ds0 + 1.0e-6));
 
 	fp = fopen("fet.dat", "w");
 	fprintf(fp, "Nx = %d, Ny = %d\n", Nx, Ny);
 	fprintf(fp, "hAB = %lf\n", hAB);
-	fprintf(fp, "fA1 = %lf, fB = %lf, fA2 = %lf\n", fA1, fB, fA2);
-	fprintf(fp, "NsA1 = %d, NsB = %d, NsA2 = %d\n", NsA1, NsB, NsA2);
+	fprintf(fp, "fA = %lf, fB = %lf\n", fA, fB);
+	fprintf(fp, "NsA = %d, NsB = %d\n", NsA, NsB);
 	fprintf(fp, "dx = %.6lf, dy = %.6lf\n", dx, dy);
 	fclose(fp);
 
@@ -119,7 +117,7 @@ int main(int argc, char **argv)
 			else
 			{
 				gfact[ijk] = (fA * ksq + exp(-ksq * fA) - 1.0);
-				gfact[ijk] += (2.0 - exp(-ksq * fA1) - exp(-ksq * fA2)) * (1.0 - exp(-ksq * fB));
+				gfact[ijk] += (1.0 - exp(-ksq * fA)) * (1.0 - exp(-ksq * fB));
 				gfact[ijk] += (fB * ksq + exp(-ksq * fB) - 1.0);
 				gfact[ijk] *= (2.0 / ksq / ksq);
 			}
@@ -135,14 +133,14 @@ int main(int argc, char **argv)
 
 	if (aismatrix == 0)
 	{
-		fAinit = fA1 + fA2;
+		fAinit = fA;
 		fBinit = fB;
 		init(in, wm, wp);
 	}
 	else if (aismatrix == 1)
 	{
 		fAinit = fB;
-		fBinit = fA1 + fA2;
+		fBinit = fA;
 		init(in, wm, wp);
 	}
 
@@ -306,17 +304,15 @@ double getConc(double *phlA, double *phlB, double phs0, double *wm, double *wp)
 	double *wA, *wB;
 	int i, j, k, iz;
 	long ijk, ijkiz;
-	double *qA1, *qcA1, *qB, *qcB, *qA2, *qcA2;
+	double *qA, *qcA, *qB, *qcB;
 	double ffl, *qInt, qtmp;
 
 	wA = (double *)malloc(sizeof(double) * NxNy);
 	wB = (double *)malloc(sizeof(double) * NxNy);
-	qA1 = (double *)malloc(sizeof(double) * NxNy * (NsA1 + 1));
-	qcA1 = (double *)malloc(sizeof(double) * NxNy * (NsA1 + 1));
+	qA = (double *)malloc(sizeof(double) * NxNy * (NsA + 1));
+	qcA = (double *)malloc(sizeof(double) * NxNy * (NsA + 1));
 	qB = (double *)malloc(sizeof(double) * NxNy * (NsB + 1));
 	qcB = (double *)malloc(sizeof(double) * NxNy * (NsB + 1));
-	qA2 = (double *)malloc(sizeof(double) * NxNy * (NsA2 + 1));
-	qcA2 = (double *)malloc(sizeof(double) * NxNy * (NsA2 + 1));
 	qInt = (double *)malloc(sizeof(double) * NxNy);
 
 	for (ijk = 0; ijk < NxNy; ijk++)
@@ -330,34 +326,27 @@ double getConc(double *phlA, double *phlB, double phs0, double *wm, double *wp)
 		qInt[ijk] = 1.0;
 	}
 
-	sovDifFft(qB, wB, qInt, fB, NsB, 1, epB);
-	sovDifFft(qcA1, wA, qInt, fA1, NsA1, -1, epA);
-	sovDifFft(qcA2, wA, qInt, fA2, NsA2, -1, epA);
-
-	for (ijk = 0; ijk < NxNy; ijk++)
-	{
-		qInt[ijk] = qcA2[ijk * (NsA2 + 1)] * qcA1[ijk * (NsA1 + 1)];
-	}
-
+	sovDifFft(qA, wA, qInt, fA, NsA, 1, epA);
 	sovDifFft(qcB, wB, qInt, fB, NsB, -1, epB);
 
 	for (ijk = 0; ijk < NxNy; ijk++)
 	{
-		qInt[ijk] = qB[ijk * (NsB + 1) + NsB] * qcA2[ijk * (NsA2 + 1)];
+		qInt[ijk] = qA[ijk * (NsA + 1) + NsA];
 	}
 
-	sovDifFft(qA1, wA, qInt, fA1, NsA1, 1, epA);
+	sovDifFft(qB, wB, qInt, fB, NsB, 1, epB);
 
 	for (ijk = 0; ijk < NxNy; ijk++)
 	{
-		qInt[ijk] = qB[ijk * (NsB + 1) + NsB] * qcA1[ijk * (NsA1 + 1)];
+		qInt[ijk] = qcB[ijk * (NsB + 1)];
 	}
-	sovDifFft(qA2, wA, qInt, fA2, NsA2, 1, epA);
+
+	sovDifFft(qcA, wA, qInt, fA, NsA, -1, epA);
 
 	q = 0.0;
 	for (ijk = 0; ijk < NxNy; ijk++)
 	{
-		q += qcB[ijk * (NsB + 1)];
+		q += qcA[ijk * (NsA + 1)];
 	}
 
 	q /= NxNy;
@@ -369,14 +358,14 @@ double getConc(double *phlA, double *phlB, double phs0, double *wm, double *wp)
 		phlA[ijk] = 0.0;
 		phlB[ijk] = 0.0;
 
-		ZDIMM = NsA1 + 1;
-		for (iz = 0; iz <= NsA1; iz++)
+		ZDIMM = NsA + 1;
+		for (iz = 0; iz <= NsA; iz++)
 		{
 			ijkiz = ijk * ZDIMM + iz;
-			if (iz == 0 || iz == NsA1)
-				phlA[ijk] += (0.50 * qA1[ijkiz] * qcA1[ijkiz]);
+			if (iz == 0 || iz == NsA)
+				phlA[ijk] += (0.50 * qA[ijkiz] * qcA[ijkiz] * ffl);
 			else
-				phlA[ijk] += (qA1[ijkiz] * qcA1[ijkiz]);
+				phlA[ijk] += (qA[ijkiz] * qcA[ijkiz] * ffl);
 		}
 
 		ZDIMM = NsB + 1;
@@ -384,33 +373,18 @@ double getConc(double *phlA, double *phlB, double phs0, double *wm, double *wp)
 		{
 			ijkiz = ijk * ZDIMM + iz;
 			if (iz == 0 || iz == NsB)
-				phlB[ijk] += (0.50 * qB[ijkiz] * qcB[ijkiz]);
+				phlB[ijk] += (0.50 * qB[ijkiz] * qcB[ijkiz] * ffl);
 			else
-				phlB[ijk] += (qB[ijkiz] * qcB[ijkiz]);
+				phlB[ijk] += (qB[ijkiz] * qcB[ijkiz] * ffl);
 		}
-
-		ZDIMM = NsA2 + 1;
-		for (iz = 0; iz <= NsA2; iz++)
-		{
-			ijkiz = ijk * ZDIMM + iz;
-			if (iz == 0 || iz == NsA2)
-				phlA[ijk] += (0.50 * qA2[ijkiz] * qcA2[ijkiz]);
-			else
-				phlA[ijk] += (qA2[ijkiz] * qcA2[ijkiz]);
-		}
-
-		phlA[ijk] *= ffl;
-		phlB[ijk] *= ffl;
 	}
-	free(qA1);
-	free(qA2);
-	free(qcA1);
-	free(qcA2);
+	free(qA);
+	free(qcA);
 	free(qB);
 	free(qcB);
 	free(qInt);
-    free(wA);
-    free(wB);
+	free(wA);
+	free(wB);
 }
 
 void sovDifFft(double *g, double *w, double *qInt, double z, int ns, int sign, double epk)
