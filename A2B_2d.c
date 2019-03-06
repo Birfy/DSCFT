@@ -63,12 +63,12 @@ int main(int argc, char **argv)
 	fscanf(fp, "%d, %d", &andmix, &andmixsteps);
 	fscanf(fp, "%lf, %lf", &wopt, &wcmp);
 	fscanf(fp, "%lf", &errMax);
-	fscanf(fp, "%lf, %lf", &lylx);
+	fscanf(fp, "%lf", &lylx);
 	fscanf(fp, "%d", &aismatrix);
 	fscanf(fp, "%lf", &hAB);
 	fscanf(fp, "%lf, %lf", &fA1, &fB);
-	fscanf(fp, "%lf, %lf, %lf", &lx, &ly);
-	fscanf(fp, "%d, %d, %d", &Nx, &Ny);
+	fscanf(fp, "%lf, %lf", &lx, &ly);
+	fscanf(fp, "%d, %d", &Nx, &Ny);
 	fscanf(fp, "%s", FEname); //output file name for parameters;
 	fscanf(fp, "%s", phname); //output file name for configuration;
 	fscanf(fp, "%lf", &ds0);

@@ -10,26 +10,26 @@
 
 void freeE(double *wm, double *wp, double *phA, double *phB);
 double getConc(double *phlA, double *phlB, double phs0, double *wm, double *wp);
-void sovDifFft(double *g, double *w, double *qInt, double z, int ns, int sign);
+void sovDifFft(double *g, double *w, double *qInt, double z, int ns, int sign, double epK);
 void write_ph(int t, double *phA, double *phB, double *wm, double *wp);
 void update_wm(double *phA, double *phB, double *wm);
 void fftw(double *in, fftw_complex *in_k, int sign);
 void wmtowp(double *wm, double *wp, double *phA, double *phB);
-void shiftw(double *w);
-void fluctuate(double *wm, double *wp, double lambda);
 
 void init(int in, double *wm, double *wp);
+void initW_Random(double *wm, double *wp);
 
 int ZDIMM, NsA1, NsB, NsA2;
 double lx, ly, ds0;
 double hAB, fA, fB, fA1, fA2;
+double epA, epB;
 int Nx, Ny, NxNy, Nyh1, NxNy1;
 double *kxyz, dx, dy;
 double fAinit, fBinit;
+int aismatrix;
 double dt, rdt;
-double q1, q2;
+double q;
 double *gfact;
-double lambda1, lambda2;
 
 int main(int argc, char **argv)
 {
@@ -47,13 +47,14 @@ int main(int argc, char **argv)
 	fp = fopen("para", "r");
 	fscanf(fp, "%d", &in);
 	fscanf(fp, "%lf", &lylx);
+	fscanf(fp, "%d", &aismatrix);
 	fscanf(fp, "%lf", &hAB);
 	fscanf(fp, "%lf, %lf", &fA1, &fB);
 	fscanf(fp, "%lf, %lf", &lx, &ly);
 	fscanf(fp, "%d, %d", &Nx, &Ny);
 	fscanf(fp, "%lf", &ds0);
+	fscanf(fp, "%lf, %lf", &epA, &epB);
 	fscanf(fp, "%lf, %lf", &dt, &rdt);
-	fscanf(fp, "%lf, %lf", &lambda1, &lambda2);
 	fclose(fp);
 
 	NxNy = Nx * Ny;
@@ -117,8 +118,8 @@ int main(int argc, char **argv)
 				gfact[ijk] = 1.0;
 			else
 			{
-				gfact[ijk] = (fA1 * ksq + exp(-ksq * fA1) - 1.0) + (fA2 * ksq + exp(-ksq * fA2) - 1.0);
-				gfact[ijk] += (1.0 - exp(-ksq * fA1)) * (1.0 - exp(-ksq * fB));
+				gfact[ijk] = (fA * ksq + exp(-ksq * fA) - 1.0);
+				gfact[ijk] += (2.0 - exp(-ksq * fA1) - exp(-ksq * fA2)) * (1.0 - exp(-ksq * fB));
 				gfact[ijk] += (fB * ksq + exp(-ksq * fB) - 1.0);
 				gfact[ijk] *= (2.0 / ksq / ksq);
 			}
@@ -132,8 +133,18 @@ int main(int argc, char **argv)
 			kxyz[ijk] = kx[i] + ky[j];
 		}
 
-	
-	init(in, wm, wp);
+	if (aismatrix == 0)
+	{
+		fAinit = fA1 + fA2;
+		fBinit = fB;
+		init(in, wm, wp);
+	}
+	else if (aismatrix == 1)
+	{
+		fAinit = fB;
+		fBinit = fA1 + fA2;
+		init(in, wm, wp);
+	}
 
 	freeE(wm, wp, phA, phB);
 
@@ -150,30 +161,41 @@ void init(int in, double *wm, double *wp)
 {
 	FILE *fp;
 	long ijk;
+	int i, j, k;
 	double e1, e2, e3, e4;
 
 	if (in == 0)
-	{
-		for (ijk = 0; ijk < NxNy; ijk++)
-		{
-			wm[ijk] = 0.0;
-			wp[ijk] = 0.0;
-		}
-	}
+		initW_Random(wm, wp);
 	else if (in == 1)
 	{
 		fp = fopen("in.d", "r");
-		for (ijk = 0; ijk < NxNy; ijk++)
-		{
-			fscanf(fp, "%lf %lf %lf %lf", &e1, &e2, &e3, &e4);
-			wm[ijk] = (e4 - e3) / 2 - hAB * (2 * fA - 1) / 2;
-			wp[ijk] = (e4 + e3) / 2 - hAB / 2;
-		}
+		for (i = 0; i < Nx; i++)
+			for (j = 0; j < Ny; j++)
+			{
+				fscanf(fp, "%lf %lf %lf %lf", &e1, &e2, &e3, &e4);
+				ijk = (long)(i * Ny + j);
+				wm[ijk] = (e4 - e3) + hAB * (e2 - e1) + 0.1 * (drand48() - 0.5);
+				wp[ijk] = 0.1 * (drand48() - 0.5);
+			}
 		fclose(fp);
 	}
-	fluctuate(wm, wp, lambda1);
-	shiftw(wm);
-	shiftw(wp);
+}
+
+void initW_Random(double *wm, double *wp)
+{
+	int i, j, k;
+	long ijk;
+
+	for (i = 0; i < Nx; i++)
+	{
+		for (j = 0; j < Ny; j++)
+		{
+			ijk = (long)(i * Ny + j);
+
+			wm[ijk] = 0.1 * (drand48() - 0.5);
+			wp[ijk] = 0.1 * (drand48() - 0.5);
+		}
+	}
 }
 
 void write_ph(int t, double *phA, double *phB, double *wm, double *wp)
@@ -234,7 +256,7 @@ void freeE(double *wm, double *wp, double *phA, double *phB)
 		freeW /= NxNy;
 		freeAB /= NxNy;
 
-		freeS = -log(q1) - log(q2);
+		freeS = -log(q);
 
 		freeOld = freeEnergy;
 		freeEnergy = freeW + freeAB + freeS;
@@ -245,118 +267,50 @@ void freeE(double *wm, double *wp, double *phA, double *phB)
 		if (t % 1000 == 0)
 			write_ph(t, phA, phB, wm, wp);
 		update_wm(phA, phB, wm);
-		
-		if (t % 100 == 0) 
-			fluctuate(wm, wp, lambda2);
+
 		t += 1;
 
 	} while (freeDiff > sm);
 }
 
-// void update_wm(double *phA, double *phB, double *wm)
-// {
-// 	double *dfdwm;
-// 	double dfdx, dfdy;
-// 	double flow;
-// 	int i, j, ijk;
-
-// 	dfdwm = (double *)malloc(sizeof(double) * NxNy);
-
-// 	for (ijk = 0; ijk < NxNy; ijk++)
-// 	{
-// 		dfdwm[ijk] = (2 * fA - 1) + 2 / hAB * wm[ijk] + (phB[ijk] - phA[ijk]);
-// 	}
-// 	for (i = 0; i < Nx; i++)
-// 	{
-// 		for (j = 0; j < Ny; j++)
-// 		{
-// 			ijk = (long)(i * Ny + j);
-// 			dfdx = (dfdwm[((i + 1) % Nx) * Ny + j] + dfdwm[((i - 1 + Nx) % Nx) * Ny + j] - 2 * dfdwm[i * Ny + j]) / dx / dx;
-// 			dfdy = (dfdwm[i * Ny + ((j + 1) % Ny)] + dfdwm[i * Ny + ((j - 1 + Ny) % Ny)] - 2 * dfdwm[i * Ny + j]) / dy / dy;
-
-// 			flow = dfdx + dfdy;
-// 			wm[ijk] += rdt * flow;
-// 		}
-// 	}
-// 	free(dfdwm);
-// }
 void update_wm(double *phA, double *phB, double *wm)
 {
 	double *dfdwm;
-	fftw_complex *dfdwmk;
 	double dfdx, dfdy;
 	double flow;
-	int i, j, ijk, ijkr;
+	int i, j, ijk;
 
 	dfdwm = (double *)malloc(sizeof(double) * NxNy);
-	dfdwmk = (fftw_complex *)malloc(sizeof(fftw_complex) * NxNy1);
 
 	for (ijk = 0; ijk < NxNy; ijk++)
 	{
 		dfdwm[ijk] = (2 * fA - 1) + 2 / hAB * wm[ijk] + (phB[ijk] - phA[ijk]);
 	}
-	
-	fftw(dfdwm, dfdwmk, 1);
-
 	for (i = 0; i < Nx; i++)
-		for (j = 0; j < Nyh1; j++)
+	{
+		for (j = 0; j < Ny; j++)
 		{
-		ijk = i * Nyh1 + j;
-		ijkr = i * Ny + j;
+			ijk = (long)(i * Ny + j);
+			dfdx = (dfdwm[((i + 1) % Nx) * Ny + j] + dfdwm[((i - 1 + Nx) % Nx) * Ny + j] - 2 * dfdwm[i * Ny + j]) / dx / dx;
+			dfdy = (dfdwm[i * Ny + ((j + 1) % Ny)] + dfdwm[i * Ny + ((j - 1 + Ny) % Ny)] - 2 * dfdwm[i * Ny + j]) / dy / dy;
 
-		dfdwmk[ijk][0] *= -kxyz[ijkr];
-		dfdwmk[ijk][1] *= -kxyz[ijkr];
+			flow = dfdx + dfdy;
+			wm[ijk] += rdt * flow;
 		}
-
-	fftw(dfdwm, dfdwmk, -1);
-
-	for (ijk = 0; ijk < NxNy; ijk++)
-	{
-		wm[ijk] += rdt * dfdwm[ijk];
 	}
-
-	shiftw(wm);
-
 	free(dfdwm);
-	free(dfdwmk);
-}
-
-void shiftw(double *w)
-{
-	long ijk;
-	double w0;
-	w0 = 0.0;
-
-	for(ijk = 0; ijk < NxNy; ijk++)
-		w0 += w[ijk];
-
-	w0/=NxNy;
-
-	for(ijk = 0; ijk < NxNy; ijk++)
-		w[ijk] -= w0;
-}
-
-void fluctuate(double *wm, double *wp, double lambda)
-{
-	long ijk;
-
-	for (ijk = 0; ijk < NxNy; ijk++)
-	{
-		wm[ijk] += lambda * (drand48() - 0.5);
-		wp[ijk] += lambda * (drand48() - 0.5);
-	}
 }
 
 double getConc(double *phlA, double *phlB, double phs0, double *wm, double *wp)
 {
 	double *wA, *wB;
-    int i, j, k, iz;
+	int i, j, k, iz;
 	long ijk, ijkiz;
 	double *qA1, *qcA1, *qB, *qcB, *qA2, *qcA2;
-	double ffl1, ffl2, *qInt, qtmp;
+	double ffl, *qInt, qtmp;
 
-    wA = (double *)malloc(sizeof(double) * NxNy);
-    wB = (double *)malloc(sizeof(double) * NxNy);
+	wA = (double *)malloc(sizeof(double) * NxNy);
+	wB = (double *)malloc(sizeof(double) * NxNy);
 	qA1 = (double *)malloc(sizeof(double) * NxNy * (NsA1 + 1));
 	qcA1 = (double *)malloc(sizeof(double) * NxNy * (NsA1 + 1));
 	qB = (double *)malloc(sizeof(double) * NxNy * (NsB + 1));
@@ -365,48 +319,50 @@ double getConc(double *phlA, double *phlB, double phs0, double *wm, double *wp)
 	qcA2 = (double *)malloc(sizeof(double) * NxNy * (NsA2 + 1));
 	qInt = (double *)malloc(sizeof(double) * NxNy);
 
-    for (ijk = 0; ijk < NxNy; ijk++){
-        wA[ijk] = wp[ijk] - wm[ijk];
-        wB[ijk] = wp[ijk] + wm[ijk];
-    }
+	for (ijk = 0; ijk < NxNy; ijk++)
+	{
+		wA[ijk] = wp[ijk] - wm[ijk];
+		wB[ijk] = wp[ijk] + wm[ijk];
+	}
 
 	for (ijk = 0; ijk < NxNy; ijk++)
 	{
 		qInt[ijk] = 1.0;
 	}
 
-	sovDifFft(qA1, wA, qInt, fA1, NsA1, 1);
-	sovDifFft(qcB, wB, qInt, fB, NsB, -1);
-	sovDifFft(qA2, wA, qInt, fA2, NsA2, 1);
-	sovDifFft(qcA2, wA, qInt, fA2, NsA2, -1);
+	sovDifFft(qB, wB, qInt, fB, NsB, 1, epB);
+	sovDifFft(qcA1, wA, qInt, fA1, NsA1, -1, epA);
+	sovDifFft(qcA2, wA, qInt, fA2, NsA2, -1, epA);
 
 	for (ijk = 0; ijk < NxNy; ijk++)
 	{
-		qInt[ijk] = qA1[ijk * (NsA1 + 1) + NsA1];
+		qInt[ijk] = qcA2[ijk * (NsA2 + 1)] * qcA1[ijk * (NsA1 + 1)];
 	}
 
-	sovDifFft(qB, wB, qInt, fB, NsB, 1);
+	sovDifFft(qcB, wB, qInt, fB, NsB, -1, epB);
 
 	for (ijk = 0; ijk < NxNy; ijk++)
 	{
-		qInt[ijk] = qcB[ijk * (NsB + 1)];
+		qInt[ijk] = qB[ijk * (NsB + 1) + NsB] * qcA2[ijk * (NsA2 + 1)];
 	}
 
-	sovDifFft(qcA1, wA, qInt, fA1, NsA1, -1);
+	sovDifFft(qA1, wA, qInt, fA1, NsA1, 1, epA);
 
-	q1 = 0.0;
-	q2 = 0.0;
 	for (ijk = 0; ijk < NxNy; ijk++)
 	{
-		q1 += qcA1[ijk * (NsA1 + 1)];
-		q2 += qcA2[ijk * (NsA2 + 1)];
+		qInt[ijk] = qB[ijk * (NsB + 1) + NsB] * qcA1[ijk * (NsA1 + 1)];
+	}
+	sovDifFft(qA2, wA, qInt, fA2, NsA2, 1, epA);
+
+	q = 0.0;
+	for (ijk = 0; ijk < NxNy; ijk++)
+	{
+		q += qcB[ijk * (NsB + 1)];
 	}
 
-	q1 /= NxNy;
-	q2 /= NxNy;
+	q /= NxNy;
 
-	ffl1 = phs0 / q1 * ds0;
-	ffl2 = phs0 / q2 * ds0;
+	ffl = phs0 / q * ds0;
 
 	for (ijk = 0; ijk < NxNy; ijk++)
 	{
@@ -418,9 +374,9 @@ double getConc(double *phlA, double *phlB, double phs0, double *wm, double *wp)
 		{
 			ijkiz = ijk * ZDIMM + iz;
 			if (iz == 0 || iz == NsA1)
-				phlA[ijk] += (0.50 * qA1[ijkiz] * qcA1[ijkiz] * ffl1);
+				phlA[ijk] += (0.50 * qA1[ijkiz] * qcA1[ijkiz]);
 			else
-				phlA[ijk] += (qA1[ijkiz] * qcA1[ijkiz] * ffl1);
+				phlA[ijk] += (qA1[ijkiz] * qcA1[ijkiz]);
 		}
 
 		ZDIMM = NsB + 1;
@@ -428,9 +384,9 @@ double getConc(double *phlA, double *phlB, double phs0, double *wm, double *wp)
 		{
 			ijkiz = ijk * ZDIMM + iz;
 			if (iz == 0 || iz == NsB)
-				phlB[ijk] += (0.50 * qB[ijkiz] * qcB[ijkiz] * ffl1);
+				phlB[ijk] += (0.50 * qB[ijkiz] * qcB[ijkiz]);
 			else
-				phlB[ijk] += (qB[ijkiz] * qcB[ijkiz] * ffl1);
+				phlB[ijk] += (qB[ijkiz] * qcB[ijkiz]);
 		}
 
 		ZDIMM = NsA2 + 1;
@@ -438,10 +394,13 @@ double getConc(double *phlA, double *phlB, double phs0, double *wm, double *wp)
 		{
 			ijkiz = ijk * ZDIMM + iz;
 			if (iz == 0 || iz == NsA2)
-				phlA[ijk] += (0.50 * qA2[ijkiz] * qcA2[ijkiz] * ffl2);
+				phlA[ijk] += (0.50 * qA2[ijkiz] * qcA2[ijkiz]);
 			else
-				phlA[ijk] += (qA2[ijkiz] * qcA2[ijkiz] * ffl2);
+				phlA[ijk] += (qA2[ijkiz] * qcA2[ijkiz]);
 		}
+
+		phlA[ijk] *= ffl;
+		phlB[ijk] *= ffl;
 	}
 	free(qA1);
 	free(qA2);
@@ -454,7 +413,7 @@ double getConc(double *phlA, double *phlB, double phs0, double *wm, double *wp)
     free(wB);
 }
 
-void sovDifFft(double *g, double *w, double *qInt, double z, int ns, int sign)
+void sovDifFft(double *g, double *w, double *qInt, double z, int ns, int sign, double epk)
 {
 	int i, j, k, iz;
 	unsigned long ijk, ijkr;
@@ -472,11 +431,13 @@ void sovDifFft(double *g, double *w, double *qInt, double z, int ns, int sign)
 	dzc = z / ns;
 	dzc2 = 0.50 * dzc;
 	ZDIMM = ns + 1;
-	for (ijk = 0; ijk < NxNy; ijk++)
-	{
-		kxyzdz[ijk] = exp(-dzc * kxyz[ijk]);
-		wdz[ijk] = exp(-w[ijk] * dzc2);
-	}
+	for (i = 0; i < Nx; i++)
+		for (j = 0; j < Ny; j++)
+		{
+			ijk = i * Ny + j;
+			kxyzdz[ijk] = exp(-dzc * kxyz[ijk] * epk);
+			wdz[ijk] = exp(-w[ijk] * dzc2);
+		}
 	p_forward = fftw_plan_dft_r2c_2d(Nx, Ny, in, out, FFTW_ESTIMATE);
 	p_backward = fftw_plan_dft_c2r_2d(Nx, Ny, out, in, FFTW_ESTIMATE);
 	if (sign == 1)
